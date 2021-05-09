@@ -5,7 +5,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
 
 import os
-import json
 from sqlalchemy_json import MutableJson
 from dotenv import load_dotenv
 
@@ -51,13 +50,11 @@ def write_user_folios(user_id: int, folio_list: list):
 
 def get_additional_details(user_id: int):
     user = User.query.get(user_id)
-    return json.load(user.additional_json)
+    return user.additional_json
 
 
 def write_additional_details(user_id: int, json_data: dict):
     user = User.query.get(user_id)
-    json.dump(json_data, user.additional_json)
+    user.additional_json = json_data
     db.session.commit()
 
-
-db.create_all()
