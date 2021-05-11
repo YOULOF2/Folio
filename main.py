@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -17,6 +17,7 @@ SALT_TIMES = 8
 APP_SECRET_KEY = os.environ.get("APP_SECRET_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///Folio-database.db")
 follow_BACKBONE = {'following': [], 'followed-by': []}
+SOCIALMEDIA_APPS = ["facebook", "instagram", "twitter", "tiktok", "snapchat"]
 
 # Initialize app
 app = Flask(__name__)
@@ -74,3 +75,40 @@ def remove_follower(followed_id: int, follower_id: int):
         follower_user.following_and_followers = {'following': follower_following_list,
                                                  'followed-by': follower_followers_list}
         db.session.commit()
+
+
+def get_user_details(user_obj):
+    return jsonify(
+        username=user_obj.username,
+        email=user_obj.email,
+        real_name=user_obj.realname,
+        user_folios=user_obj.user_folios,
+        social_media=user_obj.social_media,
+        f_f=user_obj.following_and_followers,
+        admin_privilages=user_obj.admin_privilages
+    )
+
+
+@app.route("/user/new_user", methods=["POST"])
+def create_user():
+    username = request.args.get("username")
+    email = request.args.get("email")
+    password = request.args.get("password")
+    real_name = request.args.get("name")
+    social_media = [{sm: request.args.get(sm)} for sm in SOCIALMEDIA_APPS if request.args.get(sm) is not None]
+    encrypted_password = generate_password_hash(password=password, method=HASHING_METHOD, salt_length=SALT_TIMES)
+    new_user = User(
+        username=username,
+        password_encrypted=encrypted_password,
+        email=email,
+        realname=real_name,
+        social_media=social_media,
+        admin_privilages=False
+    )
+    db.session.add(new_user)
+    db.session.commit()
+    return get_user_details(new_user)
+
+
+if "__main__" == __name__:
+    app.run(debug=True)
