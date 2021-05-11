@@ -3,6 +3,8 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
+from sqlalchemy.ext.mutable import MutableList
+from sqlalchemy import PickleType
 
 import os
 from sqlalchemy_json import MutableJson
@@ -14,7 +16,8 @@ HASHING_METHOD = "pbkdf2:sha256"
 SALT_TIMES = 8
 APP_SECRET_KEY = os.environ.get("APP_SECRET_KEY")
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///Folio-database.db")
-FOLIO_JOINER = ","
+follow_BACKBONE = {'following': [], 'followed-by': []}
+
 # Initialize app
 app = Flask(__name__)
 app.config['SECRET_KEY'] = APP_SECRET_KEY
@@ -32,29 +35,42 @@ class User(db.Model, UserMixin):
     password_encrypted = db.Column(db.String(250), nullable=False)
     email = db.Column(db.String(250), nullable=False, unique=True)
     realname = db.Column(db.String(250), nullable=False)
-    user_folios = db.Column(db.String(250), nullable=False)
+    user_folios = db.Column(MutableList.as_mutable(PickleType), nullable=False, default=[])
+    social_media = db.Column(MutableList.as_mutable(PickleType), nullable=False, default=[])
+    following_and_followers = db.Column(MutableJson, nullable=False, default=follow_BACKBONE)
     admin_privilages = db.Column(db.Boolean, nullable=False)
-    additional_json = db.Column(MutableJson, nullable=False)
 
 
-def get_user_folios(user_id):
-    user = User.query.get(user_id)
-    return user.user_folios.split(FOLIO_JOINER)
+def add_follower(follower_id: int, followed_id: int):
+    followed_user = User.query.get(followed_id)
+    followed_followers_list = [follower for follower in followed_user.following_and_followers.get("followed-by")]
+    followed_followers_list.append(follower_id)
+    followed_following_list = [follower for follower in followed_user.following_and_followers.get("following")]
+    followed_user.following_and_followers = {'following': followed_following_list,
+                                             'followed-by': followed_followers_list}
 
-
-def write_user_folios(user_id: int, folio_list: list):
-    user = User.query.get(user_id)
-    user.user_folios = FOLIO_JOINER.join(folio_list)
+    follower_user = User.query.get(follower_id)
+    follower_followers_list = [follower for follower in follower_user.following_and_followers.get("followed-by")]
+    follower_following_list = [follower for follower in follower_user.following_and_followers.get("following")]
+    follower_following_list.append(followed_id)
+    follower_user.following_and_followers = {'following': follower_following_list,
+                                             'followed-by': follower_followers_list}
     db.session.commit()
 
 
-def get_additional_details(user_id: int):
-    user = User.query.get(user_id)
-    return user.additional_json
+def remove_follower(followed_id: int, follower_id: int):
+    followed_user = User.query.get(followed_id)
+    if len(followed_user.following_and_followers.get("following")) != 0:
+        followed_followers_list = [follower for follower in followed_user.following_and_followers.get("followed-by")]
+        followed_following_list = [follower for follower in followed_user.following_and_followers.get("following")]
+        followed_following_list.remove(follower_id)
+        followed_user.following_and_followers = {'following': followed_following_list,
+                                                 'followed-by': followed_followers_list}
 
-
-def write_additional_details(user_id: int, json_data: dict):
-    user = User.query.get(user_id)
-    user.additional_json = json_data
-    db.session.commit()
-
+        follower_user = User.query.get(follower_id)
+        follower_followers_list = [follower for follower in follower_user.following_and_followers.get("followed-by")]
+        follower_followers_list.remove(followed_id)
+        follower_following_list = [follower for follower in follower_user.following_and_followers.get("following")]
+        follower_user.following_and_followers = {'following': follower_following_list,
+                                                 'followed-by': follower_followers_list}
+        db.session.commit()
