@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, render_template, request, send_from_directory
+from flask import Flask, jsonify, render_template, request, send_from_directory, abort, Response
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -77,37 +77,63 @@ def remove_follower(followed_id: int, follower_id: int):
         db.session.commit()
 
 
-def get_user_details(user_obj):
-    return jsonify(
-        username=user_obj.username,
-        email=user_obj.email,
-        real_name=user_obj.realname,
-        user_folios=user_obj.user_folios,
-        social_media=user_obj.social_media,
-        f_f=user_obj.following_and_followers,
-        admin_privilages=user_obj.admin_privilages
-    )
+def get_user_details(user_obj: User):
+    """
+    :param user_obj:
+    :return json:
+    """
+    response = {
+        "username": user_obj.username,
+        "email": user_obj.email,
+        "real_name": user_obj.realname,
+        "user_folios": user_obj.user_folios,
+        "social_media": user_obj.social_media,
+        "f_f": user_obj.following_and_followers,
+        "admin_privilages": user_obj.admin_privilages
+    }
+    return jsonify(response=response)
 
 
 @app.route("/user/new_user", methods=["POST"])
 def create_user():
-    username = request.args.get("username")
+    email = request.args.get("email")
+    print(User.query.filter_by(email=email).first())
+    if User.query.filter_by(email=email).first() is not None:
+        print("USER IS REGISTERED")
+        return jsonify(response="user already registered")
+    else:
+        print("USER NOT FOUND")
+        username = request.args.get("username")
+        password = request.args.get("password")
+        real_name = request.args.get("name")
+        social_media = [{sm: request.args.get(sm)} for sm in SOCIALMEDIA_APPS if request.args.get(sm) is not None]
+        encrypted_password = generate_password_hash(password=password, method=HASHING_METHOD, salt_length=SALT_TIMES)
+        new_user = User(
+            username=username,
+            password_encrypted=encrypted_password,
+            email=email,
+            realname=real_name,
+            social_media=social_media,
+            admin_privilages=False
+        )
+        db.session.add(new_user)
+        db.session.commit()
+        return get_user_details(new_user)
+
+
+@app.route("/user/authenticate", methods=["GET"])
+def authenticate_user():
     email = request.args.get("email")
     password = request.args.get("password")
-    real_name = request.args.get("name")
-    social_media = [{sm: request.args.get(sm)} for sm in SOCIALMEDIA_APPS if request.args.get(sm) is not None]
-    encrypted_password = generate_password_hash(password=password, method=HASHING_METHOD, salt_length=SALT_TIMES)
-    new_user = User(
-        username=username,
-        password_encrypted=encrypted_password,
-        email=email,
-        realname=real_name,
-        social_media=social_media,
-        admin_privilages=False
-    )
-    db.session.add(new_user)
-    db.session.commit()
-    return get_user_details(new_user)
+    user = User.query.filter_by(email=email).first()
+    if user is not None:
+        password_correct = check_password_hash(user.password_encrypted, password)
+        if password_correct:
+            return get_user_details(user)
+        else:
+            return jsonify(response="wrong password")
+    else:
+        return jsonify(response="user not found")
 
 
 if "__main__" == __name__:
