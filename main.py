@@ -136,5 +136,25 @@ def authenticate_user():
         return jsonify(response="user not found")
 
 
+@app.route("/user/search", methods=["GET"])
+def search_user():
+    q_type = request.args.get("q_type")
+    if q_type == "id":
+        user_id = request.args.get("id")
+        print(User.query.get(user_id))
+        user = User.query.get(user_id)
+        if user is not None:
+            return get_user_details(user)
+        else:
+            return jsonify(response="user not found")
+    elif q_type == "email":
+        email = request.args.get("email")
+        user = User.query.filter_by(email=email).first()
+        if user is not None:
+            return get_user_details(user)
+        else:
+            return jsonify(response="user not found")
+
+
 if "__main__" == __name__:
     app.run(debug=True)
