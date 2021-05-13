@@ -9,6 +9,7 @@ from sqlalchemy import PickleType
 import os
 from sqlalchemy_json import MutableJson
 from dotenv import load_dotenv
+import time
 
 load_dotenv()
 
@@ -40,6 +41,12 @@ class User(db.Model, UserMixin):
     social_media = db.Column(MutableList.as_mutable(PickleType), nullable=False, default=[])
     following_and_followers = db.Column(MutableJson, nullable=False, default=follow_BACKBONE)
     admin_privilages = db.Column(db.Boolean, nullable=False)
+
+
+class UserImages(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(250), nullable=False, unique=True)
+    image = db.Column(db.String())
 
 
 def add_follower(follower_id: int, followed_id: int):
@@ -89,7 +96,8 @@ def get_user_details(user_obj: User):
         "user_folios": user_obj.user_folios,
         "social_media": user_obj.social_media,
         "f_f": user_obj.following_and_followers,
-        "admin_privilages": user_obj.admin_privilages
+        "admin_privilages": user_obj.admin_privilages,
+        "base64_img": UserImages.query.filter_by(email=user_obj.email).first().image
     }
     return return_message(response)
 
@@ -101,15 +109,13 @@ def return_message(message):
 @app.route("/user/new_user", methods=["POST"])
 def create_user():
     email = request.args.get("email")
-    print(User.query.filter_by(email=email).first())
     if User.query.filter_by(email=email).first() is not None:
-        print("USER IS REGISTERED")
         return return_message("user already registered")
     else:
-        print("USER NOT FOUND")
         username = request.args.get("username")
         password = request.args.get("password")
         real_name = request.args.get("name")
+        base64_image = request.args.get("image")
         social_media = [{sm: request.args.get(sm)} for sm in SOCIALMEDIA_APPS if request.args.get(sm) is not None]
         encrypted_password = generate_password_hash(password=password, method=HASHING_METHOD, salt_length=SALT_TIMES)
         new_user = User(
@@ -120,7 +126,12 @@ def create_user():
             social_media=social_media,
             admin_privilages=False
         )
+        new_user_image = UserImages(
+            email=email,
+            image=base64_image
+        )
         db.session.add(new_user)
+        db.session.add(new_user_image)
         db.session.commit()
         return get_user_details(new_user)
 
@@ -129,7 +140,9 @@ def create_user():
 def delete_user():
     user_id = request.args.get("id")
     user = User.query.get(user_id)
+    user_image_obj = UserImages.query.filter_by(email=user.email).first()
     db.session.delete(user)
+    db.session.delete(user_image_obj)
     db.session.commit()
     return return_message("user deleted")
 
