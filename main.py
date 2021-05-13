@@ -125,6 +125,15 @@ def create_user():
         return get_user_details(new_user)
 
 
+@app.route("/user/delete", methods=["POST"])
+def delete_user():
+    user_id = request.args.get("id")
+    user = User.query.get(user_id)
+    db.session.delete(user)
+    db.session.commit()
+    return return_message("user deleted")
+
+
 @app.route("/user/authenticate", methods=["GET"])
 def authenticate_user():
     email = request.args.get("email")
