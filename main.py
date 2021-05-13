@@ -91,7 +91,11 @@ def get_user_details(user_obj: User):
         "f_f": user_obj.following_and_followers,
         "admin_privilages": user_obj.admin_privilages
     }
-    return jsonify(response=response)
+    return return_message(response)
+
+
+def return_message(message):
+    return jsonify(response=message)
 
 
 @app.route("/user/new_user", methods=["POST"])
@@ -100,7 +104,7 @@ def create_user():
     print(User.query.filter_by(email=email).first())
     if User.query.filter_by(email=email).first() is not None:
         print("USER IS REGISTERED")
-        return jsonify(response="user already registered")
+        return return_message("user already registered")
     else:
         print("USER NOT FOUND")
         username = request.args.get("username")
@@ -131,29 +135,26 @@ def authenticate_user():
         if password_correct:
             return get_user_details(user)
         else:
-            return jsonify(response="wrong password")
+            return return_message("wrong password")
     else:
-        return jsonify(response="user not found")
+        return return_message("user not found")
 
 
 @app.route("/user/search", methods=["GET"])
 def search_user():
-    q_type = request.args.get("q_type")
-    if q_type == "id":
-        user_id = request.args.get("id")
-        print(User.query.get(user_id))
-        user = User.query.get(user_id)
-        if user is not None:
-            return get_user_details(user)
-        else:
-            return jsonify(response="user not found")
-    elif q_type == "email":
-        email = request.args.get("email")
-        user = User.query.filter_by(email=email).first()
-        if user is not None:
-            return get_user_details(user)
-        else:
-            return jsonify(response="user not found")
+    search_item = request.args.get("query")
+    found_username = User.query.filter_by(username=search_item).first()
+    found_realname = User.query.filter_by(realname=search_item).first()
+    found_email = User.query.filter_by(email=search_item).first()
+    print(f"{found_username}\n{found_email}\n{found_realname}")
+    if found_username is not None:
+        return get_user_details(found_username)
+    elif found_realname is not None:
+        return get_user_details(found_realname)
+    elif found_email is not None:
+        return get_user_details(found_email)
+    else:
+        return return_message("user not found")
 
 
 if "__main__" == __name__:
