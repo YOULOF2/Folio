@@ -90,6 +90,7 @@ def get_user_details(user_obj: User):
     :return json:
     """
     response = {
+        "id": user_obj.id,
         "username": user_obj.username,
         "email": user_obj.email,
         "real_name": user_obj.realname,
@@ -177,6 +178,31 @@ def search_user():
         return get_user_details(found_email)
     else:
         return return_message("user not found")
+
+
+@app.route("/user/change_details", methods=["POST"])
+def modify_user():
+    user_id = request.args.get("id")
+    username = request.args.get("username")
+    password = request.args.get("password")
+    real_name = request.args.get("name")
+    base64_image = request.args.get("image")
+    modified_user_details = [detail for detail in [username, password, real_name, base64_image]
+                             if detail is not None]
+    user = User.query.get(user_id)
+    for detail in modified_user_details:
+        if detail == username:
+            user.username = username
+        if detail == password:
+            hashed_password = generate_password_hash(password, HASHING_METHOD, SALT_TIMES)
+            user.password_encrypted = hashed_password
+        elif detail == real_name:
+            user.realname = real_name
+        elif detail == base64_image:
+            user_image_obj = UserImages.query.filter_by(email=user.email).first()
+            user_image_obj.image = base64_image
+    db.session.commit()
+    return get_user_details(user)
 
 
 if "__main__" == __name__:
